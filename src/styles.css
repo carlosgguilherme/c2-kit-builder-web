@@ -134,7 +134,7 @@ button.link-button:hover { background: var(--signal); color: var(--on-signal); }
 .card-img img { width: 100%; height: auto; max-height: 90px; object-fit: contain; }
 .card-body { grid-area: body; padding: 10px 12px; display: grid; gap: 5px; align-content: start; border-top: var(--rule); min-width: 0; }
 .card h2 { font-size: 15px; font-weight: 900; margin: 0; line-height: 1.2; overflow-wrap: anywhere; }
-.rarity { justify-self: start; background: var(--rarity); color: var(--ink); border: 2px solid var(--ink); font-size: 11px; font-weight: 900; text-transform: uppercase; padding: 1px 6px; }
+.rarity { justify-self: start; background: var(--sheet); color: var(--ink); border: 2px solid var(--ink); border-left: 12px solid var(--rarity); font-size: 11px; font-weight: 900; text-transform: uppercase; padding: 1px 6px; }
 .price { font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .card-actions { grid-area: actions; display: grid; grid-template-columns: 1fr auto; border-top: var(--rule); }
 .card-actions button { border: 0; border-right: var(--rule); text-align: left; }

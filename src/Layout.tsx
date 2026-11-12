@@ -6,7 +6,7 @@ export function Header({ titleTag = "h1" }: { titleTag?: "h1" | "p" }) {
   const Title = titleTag;
   return (
     <header>
-      <a href="/" className="home-link" aria-label="CS2 Kit Builder, página inicial">
+      <a href="/" className="home-link">
         <Title className="brand">
           <span className="h-line">CS2</span>
           <span className="h-line h-kit">KIT</span>
