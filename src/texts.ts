@@ -1,7 +1,8 @@
 import type { Infeasibility, Suggestion } from "./engine/types";
 
 export const SLOT_LABEL: Record<string, string> = {
-  knife: "Faca", gloves: "Luvas", ak47: "AK-47", m4: "M4A4 / M4A1-S", awp: "AWP", deagle: "Desert Eagle", pistol: "USP-S / Glock-18",
+  knife: "Faca", gloves: "Luvas", ak47: "AK-47", m4: "M4 (qualquer)", awp: "AWP", deagle: "Desert Eagle", pistol: "Pistola (qualquer)",
+  m4a4: "M4A4", m4a1s: "M4A1-S", usp: "USP-S", glock: "Glock-18",
 };
 
 const SUGGESTION: Record<Suggestion, string> = {

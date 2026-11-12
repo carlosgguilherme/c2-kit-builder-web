@@ -3,11 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Monte kits de skins de CS2 a partir do seu orçamento e da cor que você quer." />
-    <title>CS2 Kit Builder</title>
+    <!--seo-head-->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "__SITE_URL__/#website",
+            "url": "__SITE_URL__/",
+            "name": "CS2 Kit Builder",
+            "inLanguage": "pt-BR"
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "__SITE_URL__/#app",
+            "name": "CS2 Kit Builder",
+            "url": "__SITE_URL__/",
+            "description": "Ferramenta gratuita que monta kits de skins de Counter-Strike 2 a partir de um orçamento e de uma cor, com preços aproximados do Mercado da Comunidade Steam e alternativas para cada peça.",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Qualquer navegador moderno",
+            "browserRequirements": "Requer JavaScript",
+            "inLanguage": "pt-BR",
+            "isAccessibleForFree": true,
+            "image": "__SITE_URL__/og-image.png",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" },
+            "isPartOf": { "@id": "__SITE_URL__/#website" },
+            "sourceOrganization": { "@type": "Organization", "name": "CS2 Kit Builder", "url": "https://github.com/carlosgguilherme/c2-kit-builder-web" }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>O CS2 Kit Builder precisa de JavaScript para montar os kits.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

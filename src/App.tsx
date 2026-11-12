@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { budgetRange, track } from "./analytics";
 import { buildCandidates, fetchCatalog, fetchPrices, marketUrl, type KitData } from "./data";
 import { buildKit, rebalance, replacePick } from "./engine/engine";
 import { fromHex } from "./engine/oklab";
-import { MAIN_ITEMS, type AlternativeOption, type Candidate, type KitProposal, type KitRequest, type KitResult } from "./engine/types";
-import { LegalPage } from "./Legal";
+import type { AlternativeOption, Candidate, KitProposal, KitRequest, KitResult } from "./engine/types";
+import { DEFAULT_CHOICES, buildSlots, cleanBudgetInput, parseBudget, type M4Choice, type PistolChoice, type SlotChoices } from "./kitOptions";
+import { Footer, Header, Page } from "./Layout";
 import { delta, money, problemText, slotLabel } from "./texts";
 
 const PRESETS: [string, string][] = [
   ["Vermelho", "#d32f2f"], ["Azul", "#1e88e5"], ["Azul gelo", "#8fd3f4"], ["Verde", "#2e9e4f"], ["Roxo", "#8e44ad"],
   ["Rosa", "#e91e8c"], ["Laranja", "#ef6c00"], ["Dourado", "#c9a227"], ["Preto", "#1c1c1c"], ["Branco", "#f2f2f2"],
 ];
-const DEFAULT_SLOTS = ["ak47", "m4", "awp", "deagle", "pistol"];
+const M4_OPTIONS: [M4Choice, string][] = [["any", "Qualquer"], ["m4a4", "M4A4"], ["m4a1s", "M4A1-S"], ["both", "As duas"]];
+const PISTOL_OPTIONS: [PistolChoice, string][] = [["any", "Qualquer"], ["usp", "USP-S"], ["glock", "Glock-18"], ["both", "As duas"]];
 
 type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: KitData };
 
@@ -19,9 +22,9 @@ export function App() {
   const [useColor, setUseColor] = useState(true);
   const [color, setColor] = useState("#d32f2f");
   const [colorTolerance, setColorTolerance] = useState(0.5);
-  const [budget, setBudget] = useState(200);
+  const [budgetText, setBudgetText] = useState("200");
   const [margin, setMargin] = useState(10);
-  const [slots, setSlots] = useState<string[]>(DEFAULT_SLOTS);
+  const [choices, setChoices] = useState<SlotChoices>(DEFAULT_CHOICES);
   const [statTrak, setStatTrak] = useState(false);
   const [souvenir, setSouvenir] = useState(false);
   const [request, setRequest] = useState<KitRequest | null>(null);
@@ -30,6 +33,10 @@ export function App() {
   const [seed, setSeed] = useState(0);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const resultRef = useRef<HTMLElement>(null);
+
+  const budget = parseBudget(budgetText);
+  const slots = useMemo(() => buildSlots(choices), [choices]);
 
   useEffect(() => {
     Promise.all([fetchCatalog(), fetchPrices()])
@@ -38,29 +45,15 @@ export function App() {
   }, []);
 
   const data = load.status === "ready" ? load.data : null;
-  const [page, setPage] = useState(() => (typeof window !== "undefined" ? window.location.hash : ""));
 
-  useEffect(() => {
-    const onHash = () => {
-      setPage(window.location.hash);
-      window.scrollTo(0, 0);
-    };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-
-  // Show a real kit right away (default options) instead of an empty screen.
-  useEffect(() => {
-    if (data && !result) generate(0);
-  }, [data]);
-
-  function makeRequest(nextSeed: number): KitRequest {
+  function makeRequest(nextSeed: number): KitRequest | null {
+    if (budget === null) return null;
     return {
       targetColor: useColor ? fromHex(color) : null,
       colorTolerance,
       budgetCents: Math.round(budget * 100),
       budgetTolerance: margin / 100,
-      slots: MAIN_ITEMS.filter((s) => slots.includes(s.id)).map((slot) => ({ slot, priority: 1 })),
+      slots: slots.map((slot) => ({ slot, priority: 1 })),
       allowStatTrak: statTrak,
       allowSouvenir: souvenir,
       seed: nextSeed,
@@ -76,16 +69,31 @@ export function App() {
     setResult(r);
     setKit(r.best);
     setOpen(null);
+    return r;
   }
 
-  function generate(nextSeed: number) {
+  function generate(nextSeed: number, trigger: "auto" | "button" | "another") {
     if (!data) return;
     const req = makeRequest(nextSeed);
-    run(req, nextSeed, () => buildKit(req, data.candidates));
+    if (!req) return;
+    const r = run(req, nextSeed, () => buildKit(req, data.candidates));
+    if (trigger !== "auto") {
+      track(trigger === "another" ? "generate_another" : "generate_kit", {
+        budget_range: budgetRange(budget ?? 0), items: slots.length, has_color: useColor, feasible: r.feasible,
+      });
+    }
   }
+
+  // The kit follows the options: rebuild shortly after any change (and right after loading).
+  useEffect(() => {
+    if (!data) return;
+    const t = setTimeout(() => generate(0, "auto"), 250);
+    return () => clearTimeout(t);
+  }, [data, useColor, color, colorTolerance, budget, margin, slots, statTrak, souvenir]);
 
   function swap(slotId: string, candidate: Candidate, andRebalance: boolean) {
     if (!data || !request || !kit) return;
+    track("swap_item", { slot: slotId, rebalance: andRebalance });
     if (andRebalance) {
       const req: KitRequest = { ...request, slots: request.slots.map((s) => (s.slot.id === slotId ? { ...s, lockedItemId: candidate.itemId } : s)) };
       run(req, seed, () => rebalance(request, data.candidates, slotId, candidate.itemId));
@@ -94,6 +102,8 @@ export function App() {
       setOpen(null);
     }
   }
+
+  const set = <K extends keyof SlotChoices>(key: K, value: SlotChoices[K]) => setChoices((c) => ({ ...c, [key]: value }));
 
   const state = useMemo(() => {
     if (!kit || !result) return null;
@@ -104,67 +114,74 @@ export function App() {
   }, [kit, result]);
 
   return (
-    <div className="app">
-      <header>
-        <h1>
-          <span className="h-line">CS2</span>
-          <span className="h-line h-kit">KIT</span>
-          <span className="h-line h-builder">BUILDER</span>
-        </h1>
-        <p className="tagline">Diga quanto quer gastar e a cor que quer. <mark>O kit vem montado</mark>, com alternativas para cada peça.</p>
-      </header>
+    <Page>
+      <Header />
 
-      {(page === "#termos" || page === "#privacidade") && <LegalPage page={page} />}
+      <main className="builder">
+        <section className="panel controls" aria-label="Opções do kit">
+          <div className="control">
+            <label htmlFor="budget" className="control-label">Orçamento</label>
+            <div className={`money-input${budget === null ? " invalid" : ""}`}>
+              <span aria-hidden="true">R$</span>
+              <input id="budget" type="text" inputMode="decimal" autoComplete="off" enterKeyHint="done" value={budgetText}
+                aria-describedby="budget-hint" aria-invalid={budget === null}
+                onChange={(e) => setBudgetText(cleanBudgetInput(e.target.value))} />
+            </div>
+            <p id="budget-hint" className="hint">{budget === null ? "Digite um valor, por exemplo 250 ou 1.500,00." : `Margem de ±${margin}%: de ${money(Math.round(budget * 100 * (1 - Math.max(margin, 5) / 100)))} a ${money(Math.floor(budget * 100 * (1 + margin / 100)))}.`}</p>
+          </div>
 
-      <main hidden={page === "#termos" || page === "#privacidade"}>
-        <section className="panel inputs" aria-label="Opções do kit">
-          <label className="row">
-            <input type="checkbox" checked={useColor} onChange={(e) => setUseColor(e.target.checked)} />
-            <span>Quero uma cor</span>
-          </label>
-          {useColor && (
-            <>
-              <div className="color-row">
-                <input type="color" aria-label="Cor" value={color} onChange={(e) => setColor(e.target.value)} />
-                <div className="presets">
-                  {PRESETS.map(([name, hex]) => (
-                    <button key={hex} type="button" title={name} aria-label={name} aria-pressed={color === hex}
-                      className="swatch" style={{ background: hex }} onClick={() => setColor(hex)} />
-                  ))}
-                </div>
-              </div>
-              <label className="field">
-                <span>Tolerância de cor <em>{colorTolerance <= 0.25 ? "estrita" : colorTolerance >= 0.75 ? "livre" : "média"}</em></span>
-                <input type="range" min={0} max={1} step={0.05} value={colorTolerance} onChange={(e) => setColorTolerance(Number(e.target.value))} />
+          <div className="control">
+            <div className="control-row">
+              <span className="control-label">Cor</span>
+              <button type="button" className="chip small" aria-pressed={!useColor} onClick={() => setUseColor(!useColor)}>Sem preferência</button>
+            </div>
+            <div className={`colors${useColor ? "" : " off"}`}>
+              {PRESETS.map(([name, hex]) => (
+                <button key={hex} type="button" title={name} aria-label={name} aria-pressed={useColor && color === hex}
+                  className="swatch" style={{ background: hex }} onClick={() => { setUseColor(true); setColor(hex); }} />
+              ))}
+              <label className="swatch custom" title="Outra cor">
+                <span className="sr-only">Outra cor</span>
+                <input type="color" value={color} onChange={(e) => { setUseColor(true); setColor(e.target.value); }} />
               </label>
-            </>
-          )}
+            </div>
+          </div>
 
-          <label className="field">
-            <span>Orçamento (R$)</span>
-            <input type="number" min={0} step={10} value={budget} onChange={(e) => setBudget(Math.max(0, Number(e.target.value)))} />
-          </label>
-          <label className="field">
-            <span>Margem do orçamento <em>±{margin}%</em></span>
-            <input type="range" min={0} max={30} step={1} value={margin} onChange={(e) => setMargin(Number(e.target.value))} />
-          </label>
+          <div className="control">
+            <span className="control-label" id="items-label">Itens do kit</span>
+            <div className="chips" role="group" aria-labelledby="items-label">
+              <Toggle label="Faca" on={choices.knife} onChange={(v) => set("knife", v)} />
+              <Toggle label="Luvas" on={choices.gloves} onChange={(v) => set("gloves", v)} />
+              <Toggle label="AK-47" on={choices.ak47} onChange={(v) => set("ak47", v)} />
+              <Toggle label="M4" on={choices.m4 !== "off"} onChange={(v) => set("m4", v ? "any" : "off")} />
+              <Toggle label="AWP" on={choices.awp} onChange={(v) => set("awp", v)} />
+              <Toggle label="Desert Eagle" on={choices.deagle} onChange={(v) => set("deagle", v)} />
+              <Toggle label="Pistola" on={choices.pistol !== "off"} onChange={(v) => set("pistol", v ? "any" : "off")} />
+            </div>
+            {choices.m4 !== "off" && <Segmented label="Qual M4" options={M4_OPTIONS} value={choices.m4} onChange={(v) => set("m4", v)} />}
+            {choices.pistol !== "off" && <Segmented label="Qual pistola" options={PISTOL_OPTIONS} value={choices.pistol} onChange={(v) => set("pistol", v)} />}
+          </div>
 
-          <fieldset>
-            <legend>Itens do kit</legend>
-            {MAIN_ITEMS.map((s) => (
-              <label key={s.id} className="row">
-                <input type="checkbox" checked={slots.includes(s.id)}
-                  onChange={(e) => setSlots(e.target.checked ? [...slots, s.id] : slots.filter((x) => x !== s.id))} />
-                <span>{slotLabel(s.id)}</span>
-              </label>
-            ))}
-          </fieldset>
-          <label className="row"><input type="checkbox" checked={statTrak} onChange={(e) => setStatTrak(e.target.checked)} /><span>Aceitar StatTrak™</span></label>
-          <label className="row"><input type="checkbox" checked={souvenir} onChange={(e) => setSouvenir(e.target.checked)} /><span>Aceitar Souvenir</span></label>
+          <details className="more">
+            <summary>Mais opções</summary>
+            <label className="field">
+              <span>Tolerância de cor <em>{colorTolerance <= 0.25 ? "estrita" : colorTolerance >= 0.75 ? "livre" : "média"}</em></span>
+              <input type="range" min={0} max={1} step={0.05} value={colorTolerance} onChange={(e) => setColorTolerance(Number(e.target.value))} />
+            </label>
+            <label className="field">
+              <span>Margem do orçamento <em>±{margin}%</em></span>
+              <input type="range" min={0} max={30} step={1} value={margin} onChange={(e) => setMargin(Number(e.target.value))} />
+            </label>
+            <label className="row"><input type="checkbox" checked={statTrak} onChange={(e) => setStatTrak(e.target.checked)} /><span>Aceitar StatTrak™</span></label>
+            <label className="row"><input type="checkbox" checked={souvenir} onChange={(e) => setSouvenir(e.target.checked)} /><span>Aceitar Souvenir</span></label>
+          </details>
 
           <div className="actions">
-            <button type="button" className="primary" disabled={!data} onClick={() => generate(0)}>Montar kit</button>
-            <button type="button" disabled={!data || !kit} onClick={() => generate(seed + 1)}>Gerar outra combinação</button>
+            <button type="button" className="primary" disabled={!data || budget === null}
+              onClick={() => { generate(0, "button"); resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>
+              Montar kit
+            </button>
+            <button type="button" disabled={!data || !kit || budget === null} onClick={() => generate(seed + 1, "another")}>Outra combinação</button>
           </div>
           <p className="status" role="status">
             {load.status === "loading" && "Carregando catálogo e preços…"}
@@ -175,17 +192,18 @@ export function App() {
                 {data.pricesUpdatedAt
                   ? `Preço aproximado do Mercado da Steam, atualizado em ${new Date(data.pricesUpdatedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}.`
                   : "Ainda sem preços."}
-                {!data.crawlComplete && " A primeira coleta de preços ainda está em andamento, então alguns itens podem faltar."}
               </>
             )}
           </p>
         </section>
 
-        <section className="result" aria-label="Kit montado">
+        <section className="result" aria-label="Kit montado" ref={resultRef}>
+          {load.status === "loading" && <Skeleton />}
+          {load.status === "error" && <p className="problem" role="alert">Não foi possível carregar os dados agora. Tente recarregar a página.</p>}
           {result?.problem && <p className="problem" role="alert">{problemText(result.problem)}</p>}
           {kit && state && (
             <>
-              <div className={`total ${state.cls}`}>
+              <div className={`total ${state.cls}`} id="total">
                 <span className="total-label">TOTAL DO KIT</span>
                 <strong>{money(kit.totalCents)}</strong>
                 <span>{delta(kit.totalCents - kit.budgetCents)} em relação ao orçamento · <span className="total-state">{state.text}</span></span>
@@ -195,33 +213,42 @@ export function App() {
                 {kit.picks.map((pick) => {
                   const info = data!.info.get(pick.candidate.itemId);
                   const alts = alternativesFor(result!, kit, pick.slotId);
+                  const isOpen = open === pick.slotId;
                   return (
                     <article key={pick.slotId} className="card" style={{ ["--rarity" as string]: info?.rarityColor ?? "#b0c3d9" }}>
                       <span className="slot">{slotLabel(pick.slotId)}</span>
-                      {info?.imageUrl
-                        ? <img src={info.imageUrl} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
-                        : <div className="noimg" />}
-                      <h2>{pick.candidate.name}</h2>
-                      <span className="rarity">{info?.rarityName}</span>
-                      <strong className="price">{money(pick.effectivePriceCents)}</strong>
-                      <div className="card-actions">
-                        <button type="button" aria-expanded={open === pick.slotId} disabled={alts.length === 0}
-                          onClick={() => setOpen(open === pick.slotId ? null : pick.slotId)}>
-                          Alternativas ({alts.length})
-                        </button>
-                        {info && <a href={marketUrl(info.marketHashName)} target="_blank" rel="noreferrer">Ver no Mercado</a>}
+                      <div className="card-img">
+                        {info?.imageUrl && (
+                          <img src={info.imageUrl} alt={pick.candidate.name} width={256} height={192} loading="lazy" decoding="async"
+                            onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+                        )}
                       </div>
-                      {open === pick.slotId && (
-                        <ul className="alts">
+                      <div className="card-body">
+                        <h2>{pick.candidate.name}</h2>
+                        <span className="rarity">{info?.rarityName}</span>
+                        <strong className="price">{money(pick.effectivePriceCents)}</strong>
+                      </div>
+                      <div className="card-actions">
+                        <button type="button" aria-expanded={isOpen} aria-controls={`alts-${pick.slotId}`} disabled={alts.length === 0}
+                          onClick={() => { if (!isOpen) track("open_alternatives", { slot: pick.slotId }); setOpen(isOpen ? null : pick.slotId); }}>
+                          {alts.length === 0 ? "Sem alternativas" : `Alternativas (${alts.length})`}
+                        </button>
+                        {info && (
+                          <a href={marketUrl(info.marketHashName)} target="_blank" rel="noreferrer"
+                            onClick={() => track("view_market", { slot: pick.slotId })}>Ver no Mercado</a>
+                        )}
+                      </div>
+                      {isOpen && (
+                        <ul className="alts" id={`alts-${pick.slotId}`}>
                           {alts.map((a) => (
                             <li key={a.candidate.itemId}>
-                              <div>
+                              <div className="alt-info">
                                 <span>{a.candidate.name}</span>
-                                <span className="muted">{money(a.effectivePriceCents)} · <b className={a.deltaCents < 0 ? "down" : "up"}>{delta(a.deltaCents)}</b></span>
+                                <span className="alt-price">{money(a.effectivePriceCents)} <b className={a.deltaCents < 0 ? "down" : "up"}>{delta(a.deltaCents)}</b></span>
                               </div>
                               <div className="alt-actions">
                                 <button type="button" onClick={() => swap(pick.slotId, a.candidate, false)}>Trocar</button>
-                                <button type="button" onClick={() => swap(pick.slotId, a.candidate, true)} title="Troca e remonta o resto do kit">Trocar e rebalancear</button>
+                                <button type="button" onClick={() => swap(pick.slotId, a.candidate, true)}>Trocar e rebalancear</button>
                               </div>
                             </li>
                           ))}
@@ -233,25 +260,36 @@ export function App() {
               </div>
             </>
           )}
-          {load.status === "loading" && <Skeleton />}
-          {load.status === "error" && <p className="problem" role="alert">Não foi possível carregar os dados agora. Tente recarregar a página.</p>}
         </section>
       </main>
 
-      <footer>
-        <p>
-          CS2 Kit Builder é um projeto independente e sem fins comerciais. Não é afiliado, patrocinado nem endossado pela Valve Corporation.
-          Counter-Strike, Counter-Strike 2, Steam, os logotipos e as imagens dos itens são marcas e/ou propriedade da Valve Corporation.
-          Todos os direitos sobre esses itens pertencem aos seus respectivos titulares. Preços são estimativas obtidas do Mercado da
-          Comunidade Steam e podem estar desatualizados.
-        </p>
-        <p>Catálogo: ByMykel/CSGO-API (MIT). Sem login, sem anúncios, sem coleta de dados.</p>
-        <nav className="legal-links" aria-label="Documentos">
-          <a href="#termos">Termos de Uso</a>
-          <a href="#privacidade">Política de Privacidade</a>
-          <a href="https://github.com/carlosgguilherme/c2-kit-builder-web" target="_blank" rel="noreferrer">Código-fonte</a>
-        </nav>
-      </footer>
+      {kit && (
+        <div className="mobile-bar" aria-hidden="true">
+          <a href="#total" className="mobile-total" tabIndex={-1}>{money(kit.totalCents)}</a>
+          <button type="button" tabIndex={-1} disabled={!data || budget === null} onClick={() => generate(seed + 1, "another")}>Outra combinação</button>
+        </div>
+      )}
+
+      <Footer />
+    </Page>
+  );
+}
+
+function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
+  return <button type="button" className="chip" aria-pressed={on} onClick={() => onChange(!on)}>{label}</button>;
+}
+
+function Segmented<T extends string>({ label, options, value, onChange }: {
+  label: string; options: [T, string][]; value: T; onChange: (v: T) => void;
+}) {
+  return (
+    <div className="segmented" role="radiogroup" aria-label={label}>
+      <span className="segmented-label">{label}</span>
+      <div className="segmented-options">
+        {options.map(([v, text]) => (
+          <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)}>{text}</button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -285,7 +323,6 @@ function Skeleton() {
             <div className="sk-line sk-short" />
             <div className="sk-img" />
             <div className="sk-line" />
-            <div className="sk-line sk-short" />
             <div className="sk-price" />
           </div>
         ))}

@@ -1,21 +1,38 @@
+import { analyticsEnabled } from "./analytics";
+import { REPO_URL as REPO } from "./site";
+
 const UPDATED = "12 de novembro de 2026";
-const REPO = "https://github.com/carlosgguilherme/c2-kit-builder-web";
 
 /** Terms of Use and Privacy Policy (pt-BR). Keep them in sync with what the site actually does. */
-export function LegalPage({ page }: { page: string }) {
+export function LegalPage({ page }: { page: "termos" | "privacidade" }) {
   return (
-    <article className="legal">
-      <a className="back" href="#">Voltar para o montador</a>
-      {page === "#termos" ? <Terms /> : <Privacy />}
-      <p className="legal-date">Última atualização: {UPDATED}.</p>
-    </article>
+    <main className="legal-main">
+      <article className="legal">
+        <a className="back" href="/">Voltar para o montador</a>
+        {page === "termos" ? <Terms /> : <Privacy />}
+        <p className="legal-date">Última atualização: {UPDATED}.</p>
+      </article>
+    </main>
+  );
+}
+
+export function NotFound() {
+  return (
+    <main className="legal-main">
+      <article className="legal not-found">
+        <p className="nf-code" aria-hidden="true">404</p>
+        <h1>Página não encontrada</h1>
+        <p>O endereço que você abriu não existe ou mudou de lugar.</p>
+        <a className="back" href="/">Montar um kit</a>
+      </article>
+    </main>
   );
 }
 
 function Terms() {
   return (
     <>
-      <h2>Termos de Uso</h2>
+      <h1>Termos de Uso</h1>
       <h3>O que é este site</h3>
       <p>
         O CS2 Kit Builder é uma ferramenta gratuita e sem fins comerciais que sugere combinações de skins de Counter-Strike 2
@@ -60,18 +77,35 @@ function Terms() {
 function Privacy() {
   return (
     <>
-      <h2>Política de Privacidade</h2>
+      <h1>Política de Privacidade</h1>
       <h3>O que o site guarda sobre você</h3>
       <p>
-        Nada. Não há cadastro, login, formulário, cookies próprios, ferramentas de análise de tráfego ou anúncios. As opções que
-        você escolhe (cor, orçamento, itens) ficam apenas na página aberta e somem ao fechá-la.
+        Não há cadastro, login, formulário nem anúncios. As opções que você escolhe (cor, orçamento, itens) ficam apenas na página
+        aberta e somem ao fechá-la.
+        {analyticsEnabled()
+          ? " A única informação guardada no seu navegador é a sua escolha sobre os cookies de estatística (aceitar ou recusar)."
+          : " O site não usa cookies nem ferramentas de estatística."}
       </p>
+      {analyticsEnabled() && (
+        <>
+          <h3>Estatísticas de uso (Google Analytics)</h3>
+          <p>
+            Se você aceitar no aviso de cookies, o site ativa o Google Analytics 4 para contar visitas e entender quais opções do
+            montador são usadas: faixa de orçamento, quantidade de itens, se uma cor foi escolhida, quais itens foram trocados e
+            cliques em "Ver no Mercado". Nenhum dado que identifique você é enviado pelo site; o endereço IP é tratado pelo Google
+            conforme a política dele, com sinais de anúncios desativados. Se você recusar, o Google Analytics não é carregado.
+            Você pode mudar a escolha a qualquer momento em "Preferências de cookies", no rodapé. A base legal é o seu
+            consentimento (LGPD, art. 7º, I).
+          </p>
+        </>
+      )}
       <h3>Serviços que recebem seu acesso</h3>
       <p>Ao abrir o site, o seu navegador se conecta diretamente a estes serviços, que recebem dados técnicos normais de qualquer acesso à internet, como endereço IP e tipo de navegador:</p>
       <ul>
         <li><strong>Vercel</strong>, que hospeda as páginas do site.</li>
         <li><strong>Supabase</strong>, que guarda a tabela de preços consultada pela página.</li>
         <li><strong>Steam (Valve)</strong>, de onde são carregadas as imagens das skins e para onde levam os links "Ver no Mercado".</li>
+        {analyticsEnabled() && <li><strong>Google</strong>, somente se você aceitar as estatísticas de uso.</li>}
       </ul>
       <p>
         Esses serviços podem manter registros técnicos de acesso conforme as próprias políticas de privacidade. O site não envia
@@ -79,7 +113,7 @@ function Privacy() {
       </p>
       <h3>Seus direitos</h3>
       <p>
-        Como o site não armazena dados pessoais, não há dados seus para consultar, corrigir ou apagar aqui. Para dados mantidos
+        O site não armazena dados pessoais, então não há dados seus para consultar, corrigir ou apagar aqui. Para dados mantidos
         pelos serviços acima, consulte as políticas de cada um.
       </p>
       <h3>Contato</h3>

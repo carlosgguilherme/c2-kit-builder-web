@@ -154,3 +154,11 @@ export const MAIN_ITEMS: SlotDefinition[] = [
   slot("deagle", 3.5, ["Desert Eagle"]),
   slot("pistol", 3.5, ["USP-S", "Glock-18"]),
 ];
+
+/** Single-weapon slots, so the user can pick a specific M4 or pistol (or both, as two slots). */
+export const EXTRA_SLOTS: Record<string, SlotDefinition> = {
+  m4a4: slot("m4a4", 7, ["M4A4"]),
+  m4a1s: slot("m4a1s", 7, ["M4A1-S"]),
+  usp: slot("usp", 3.5, ["USP-S"]),
+  glock: slot("glock", 3.5, ["Glock-18"]),
+};
