@@ -3,6 +3,7 @@ import { buildCandidates, fetchCatalog, fetchPrices, marketUrl, type KitData } f
 import { buildKit, rebalance, replacePick } from "./engine/engine";
 import { fromHex } from "./engine/oklab";
 import { MAIN_ITEMS, type AlternativeOption, type Candidate, type KitProposal, type KitRequest, type KitResult } from "./engine/types";
+import { LegalPage } from "./Legal";
 import { delta, money, problemText, slotLabel } from "./texts";
 
 const PRESETS: [string, string][] = [
@@ -37,6 +38,21 @@ export function App() {
   }, []);
 
   const data = load.status === "ready" ? load.data : null;
+  const [page, setPage] = useState(() => (typeof window !== "undefined" ? window.location.hash : ""));
+
+  useEffect(() => {
+    const onHash = () => {
+      setPage(window.location.hash);
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // Show a real kit right away (default options) instead of an empty screen.
+  useEffect(() => {
+    if (data && !result) generate(0);
+  }, [data]);
 
   function makeRequest(nextSeed: number): KitRequest {
     return {
@@ -95,15 +111,12 @@ export function App() {
           <span className="h-line h-kit">KIT</span>
           <span className="h-line h-builder">BUILDER</span>
         </h1>
-        <span className="sticker" aria-hidden="true">R$ + COR = KIT</span>
         <p className="tagline">Diga quanto quer gastar e a cor que quer. <mark>O kit vem montado</mark>, com alternativas para cada peça.</p>
       </header>
-      <div className="ticker" aria-hidden="true">
-        <span>FACA ★ LUVAS ★ AK-47 ★ M4 ★ AWP ★ DEAGLE ★ USP-S ★ GLOCK ★ FACA ★ LUVAS ★ AK-47 ★ M4 ★ AWP ★ DEAGLE ★ USP-S ★ GLOCK ★&nbsp;</span>
-        <span>FACA ★ LUVAS ★ AK-47 ★ M4 ★ AWP ★ DEAGLE ★ USP-S ★ GLOCK ★ FACA ★ LUVAS ★ AK-47 ★ M4 ★ AWP ★ DEAGLE ★ USP-S ★ GLOCK ★&nbsp;</span>
-      </div>
 
-      <main>
+      {(page === "#termos" || page === "#privacidade") && <LegalPage page={page} />}
+
+      <main hidden={page === "#termos" || page === "#privacidade"}>
         <section className="panel inputs" aria-label="Opções do kit">
           <label className="row">
             <input type="checkbox" checked={useColor} onChange={(e) => setUseColor(e.target.checked)} />
@@ -175,7 +188,7 @@ export function App() {
               <div className={`total ${state.cls}`}>
                 <span className="total-label">TOTAL DO KIT</span>
                 <strong>{money(kit.totalCents)}</strong>
-                <span>{delta(kit.totalCents - kit.budgetCents)} em relação ao orçamento · {state.text}</span>
+                <span>{delta(kit.totalCents - kit.budgetCents)} em relação ao orçamento · <span className="total-state">{state.text}</span></span>
                 <span className="muted">Harmonia de cor {Math.round(kit.colorHarmony * 100)}%{elapsed !== null && ` · montado em ${elapsed} ms`}</span>
               </div>
               <div className="cards">
@@ -220,7 +233,8 @@ export function App() {
               </div>
             </>
           )}
-          {!kit && !result && <p className="empty">Escolha as opções e clique em <b>Montar kit</b>.</p>}
+          {load.status === "loading" && <Skeleton />}
+          {load.status === "error" && <p className="problem" role="alert">Não foi possível carregar os dados agora. Tente recarregar a página.</p>}
         </section>
       </main>
 
@@ -232,6 +246,11 @@ export function App() {
           Comunidade Steam e podem estar desatualizados.
         </p>
         <p>Catálogo: ByMykel/CSGO-API (MIT). Sem login, sem anúncios, sem coleta de dados.</p>
+        <nav className="legal-links" aria-label="Documentos">
+          <a href="#termos">Termos de Uso</a>
+          <a href="#privacidade">Política de Privacidade</a>
+          <a href="https://github.com/carlosgguilherme/c2-kit-builder-web" target="_blank" rel="noreferrer">Código-fonte</a>
+        </nav>
       </footer>
     </div>
   );
@@ -253,4 +272,24 @@ function alternativesFor(result: KitResult, kit: KitProposal, slotId: string): A
       return { candidate: o.candidate, effectivePriceCents: o.price, deltaCents: d, colorScore: 0,
         keepsKitWithinBand: total >= result.bandMinCents && total <= result.bandMaxCents };
     });
+}
+
+/** Placeholder layout while the catalog and prices load. */
+function Skeleton() {
+  return (
+    <div className="skeleton" aria-busy="true" aria-label="Carregando kit">
+      <div className="sk-total" />
+      <div className="cards">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="card sk-card">
+            <div className="sk-line sk-short" />
+            <div className="sk-img" />
+            <div className="sk-line" />
+            <div className="sk-line sk-short" />
+            <div className="sk-price" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
