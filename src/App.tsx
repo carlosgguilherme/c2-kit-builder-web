@@ -90,9 +90,18 @@ export function App() {
   return (
     <div className="app">
       <header>
-        <h1>CS2 Kit Builder</h1>
-        <p>Diga quanto quer gastar e a cor que quer. O kit vem montado, com alternativas para cada peça.</p>
+        <h1>
+          <span className="h-line">CS2</span>
+          <span className="h-line h-kit">KIT</span>
+          <span className="h-line h-builder">BUILDER</span>
+        </h1>
+        <span className="sticker" aria-hidden="true">R$ + COR = KIT</span>
+        <p className="tagline">Diga quanto quer gastar e a cor que quer. <mark>O kit vem montado</mark>, com alternativas para cada peça.</p>
       </header>
+      <div className="ticker" aria-hidden="true">
+        <span>FACA ★ LUVAS ★ AK-47 ★ M4 ★ AWP ★ DEAGLE ★ USP-S ★ GLOCK ★ FACA ★ LUVAS ★ AK-47 ★ M4 ★ AWP ★ DEAGLE ★ USP-S ★ GLOCK ★&nbsp;</span>
+        <span>FACA ★ LUVAS ★ AK-47 ★ M4 ★ AWP ★ DEAGLE ★ USP-S ★ GLOCK ★ FACA ★ LUVAS ★ AK-47 ★ M4 ★ AWP ★ DEAGLE ★ USP-S ★ GLOCK ★&nbsp;</span>
+      </div>
 
       <main>
         <section className="panel inputs" aria-label="Opções do kit">
@@ -164,6 +173,7 @@ export function App() {
           {kit && state && (
             <>
               <div className={`total ${state.cls}`}>
+                <span className="total-label">TOTAL DO KIT</span>
                 <strong>{money(kit.totalCents)}</strong>
                 <span>{delta(kit.totalCents - kit.budgetCents)} em relação ao orçamento · {state.text}</span>
                 <span className="muted">Harmonia de cor {Math.round(kit.colorHarmony * 100)}%{elapsed !== null && ` · montado em ${elapsed} ms`}</span>
@@ -173,13 +183,13 @@ export function App() {
                   const info = data!.info.get(pick.candidate.itemId);
                   const alts = alternativesFor(result!, kit, pick.slotId);
                   return (
-                    <article key={pick.slotId} className="card" style={{ borderBottomColor: info?.rarityColor }}>
+                    <article key={pick.slotId} className="card" style={{ ["--rarity" as string]: info?.rarityColor ?? "#b0c3d9" }}>
                       <span className="slot">{slotLabel(pick.slotId)}</span>
                       {info?.imageUrl
                         ? <img src={info.imageUrl} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
                         : <div className="noimg" />}
                       <h2>{pick.candidate.name}</h2>
-                      <span className="rarity" style={{ color: info?.rarityColor }}>{info?.rarityName}</span>
+                      <span className="rarity">{info?.rarityName}</span>
                       <strong className="price">{money(pick.effectivePriceCents)}</strong>
                       <div className="card-actions">
                         <button type="button" aria-expanded={open === pick.slotId} disabled={alts.length === 0}
