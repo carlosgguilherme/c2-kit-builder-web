@@ -6,6 +6,10 @@ Project `cs2-kit-builder` (region sa-east-1). Applied migrations, in order:
    the `prices_snapshot()` RPC that returns the whole cache in one request.
 2. `enable_cron_and_net` — `pg_cron` and `pg_net`.
 3. `schedule_price_crawl` — calls the `crawl-prices` Edge Function once a minute.
+4. `move_pg_net_to_extensions_schema` — security advisor fix (`pg_net` out of `public`).
+
+First full cycle (2026-11-12, from Supabase sa-east-1): 15,770 prices in ~2 h 25 min, 125 calls,
+0 errors, no Steam rate limit. Security advisor: no findings.
 
 `functions/crawl-prices` crawls the Steam Market search in slices (10 pages per call, 3.5 s apart),
 pauses 15 minutes on HTTP 429/403 and starts a new cycle when the cache is older than 6 hours.
