@@ -309,9 +309,9 @@ export function App() {
       </main>
 
       {kit && (
-        <div className="mobile-bar" aria-hidden="true">
-          <a href="#total" className="mobile-total" tabIndex={-1}>{money(kit.totalCents)}</a>
-          <button type="button" tabIndex={-1} disabled={!data || budget === null} onClick={() => generate(seed + 1, "another")}>Outra combinação</button>
+        <div className="mobile-bar">
+          <a href="#total" className="mobile-total" aria-label={`Total do kit: ${money(kit.totalCents)}`}>{money(kit.totalCents)}</a>
+          <button type="button" disabled={!data || budget === null} onClick={() => generate(seed + 1, "another")}>Outra combinação</button>
         </div>
       )}
 
