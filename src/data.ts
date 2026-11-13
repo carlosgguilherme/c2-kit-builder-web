@@ -90,6 +90,7 @@ export function buildCandidates(catalog: CatalogDoc, snapshot: PriceSnapshot): K
       imageUrl: image ? (image.startsWith("http") ? image : catalog.imagePrefix + image) + "/256fx256f" : null,
     });
   }
+  assignAppeal(candidates);
   return {
     candidates, info, pricedItems: candidates.length, catalogItems: catalog.items.length,
     pricesUpdatedAt: snapshot.updatedAt, crawlComplete: snapshot.cycleCompletedAt !== null,
@@ -98,3 +99,38 @@ export function buildCandidates(catalog: CatalogDoc, snapshot: PriceSnapshot): K
 
 export const marketUrl = (marketHashName: string) =>
   "https://steamcommunity.com/market/listings/730/" + encodeURIComponent(marketHashName);
+
+/**
+ * Desirability from the market: percentile of an item's price among all skins of the same weapon,
+ * exterior and StatTrak/Souvenir variant (falls back to the whole category when the group is small).
+ * Same gun and condition, higher price = rarer and/or more people want it.
+ */
+export function assignAppeal(candidates: Candidate[]): void {
+  const key = (c: Candidate, broad: boolean) =>
+    [broad ? c.category : c.weapon, c.exterior ?? "-", c.statTrak ? "st" : "", c.souvenir ? "sv" : ""].join("|");
+  const groups = new Map<string, number[]>();
+  for (const c of candidates) {
+    for (const broad of [false, true]) {
+      const k = key(c, broad);
+      const g = groups.get(k);
+      if (g) g.push(c.priceCents);
+      else groups.set(k, [c.priceCents]);
+    }
+  }
+  for (const g of groups.values()) g.sort((a, b) => a - b);
+  for (const c of candidates) {
+    let g = groups.get(key(c, false))!;
+    if (g.length < 4) g = groups.get(key(c, true))!;
+    if (g.length < 2) {
+      c.appeal = 0.5;
+      continue;
+    }
+    // Mid-rank percentile, so ties share a value.
+    let below = 0, equal = 0;
+    for (const p of g) {
+      if (p < c.priceCents) below++;
+      else if (p === c.priceCents) equal++;
+    }
+    c.appeal = (below + (equal - 1) / 2) / (g.length - 1);
+  }
+}

@@ -150,6 +150,21 @@ button.link-button:hover { background: var(--signal); color: var(--on-signal); }
 .down, .up { padding: 0 5px; font-weight: 900; }
 .down { background: var(--ink); color: var(--sheet); } .up { background: var(--signal); color: var(--on-signal); }
 
+/* Suggested kits */
+.suggestions { border: var(--rule); background: var(--sheet); }
+.suggestions-title { margin: 0; padding: 10px 14px; background: var(--ink); color: var(--sheet); font: 900 15px var(--display); text-transform: uppercase; letter-spacing: 0.04em; }
+.suggestions ol { list-style: none; margin: 0; padding: 0; }
+.suggestions li { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 12px 14px; border-top: var(--rule); }
+.suggestions li:first-child { border-top: 0; }
+.sugg-thumbs { display: flex; gap: 6px; overflow: hidden; }
+.sugg-thumbs img { width: 56px; height: 42px; object-fit: contain; background: var(--stone); border: 2px solid var(--ink); flex: none; }
+.sugg-text { display: grid; gap: 2px; min-width: 0; }
+.sugg-text strong { font: 900 22px var(--display); font-variant-numeric: tabular-nums; }
+.sugg-text span { font-size: 13px; font-weight: 700; line-height: 1.35; }
+@media (min-width: 860px) {
+  .suggestions li { grid-template-columns: auto 1fr auto; align-items: center; }
+}
+
 /* Fixed bar on phones: total always visible + another combination */
 .mobile-bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto; align-items: stretch;

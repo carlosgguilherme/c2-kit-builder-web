@@ -44,6 +44,12 @@ export interface Candidate {
   priceCents: number;
   colors: ColorProfile | null;
   salesVolume?: number | null;
+  /**
+   * Optional 0..1 desirability: how the item's market price ranks among items of the same weapon,
+   * rarity and exterior (the community pays more for skins it likes). Absent = neutral, and the
+   * quality formula stays identical to the Windows reference (golden fixtures have no appeal).
+   */
+  appeal?: number | null;
   floatMin?: number | null;
   floatMax?: number | null;
   owned?: boolean;

@@ -44,3 +44,32 @@ describe("data", () => {
       + "O kit mais barato possível custa R$ 667,50. Tente: aumentar o orçamento, desligar esse item.");
   });
 });
+
+describe("appeal (market desirability)", () => {
+  it("ranks skins of the same weapon and exterior by price and falls back to the category", async () => {
+    const { assignAppeal } = await import("./data");
+    const mk = (itemId: string, weapon: string, priceCents: number, exterior = 3): import("./engine/types").Candidate => ({
+      itemId, skinId: itemId, name: itemId, weapon, category: "Rifle", rarity: 4, exterior, statTrak: false, souvenir: false, priceCents, colors: null,
+    });
+    const list = [mk("a", "AK-47", 100), mk("b", "AK-47", 200), mk("c", "AK-47", 300), mk("d", "AK-47", 400), mk("lonely", "M4A4", 250), mk("e", "AK-47", 50, 1)];
+    assignAppeal(list);
+    const by = Object.fromEntries(list.map((c) => [c.itemId, c.appeal]));
+    expect(by.a).toBe(0);
+    expect(by.d).toBe(1);
+    expect(by.b).toBeCloseTo(1 / 3);
+    // M4A4 has a group of 1: compared with all rifles in the same exterior instead.
+    expect(by.lonely).toBeGreaterThan(0.4);
+    expect(by.lonely).toBeLessThan(0.8);
+  });
+
+  it("makes the engine prefer the more wanted skin at the same price tier", async () => {
+    const { buildKit } = await import("./engine/engine");
+    const { MAIN_ITEMS } = await import("./engine/types");
+    const mk = (itemId: string, priceCents: number, appeal: number): import("./engine/types").Candidate => ({
+      itemId, skinId: itemId, name: itemId, weapon: "AK-47", category: "Rifle", rarity: 4, exterior: 3, statTrak: false, souvenir: false, priceCents, colors: null, appeal,
+    });
+    const ak = MAIN_ITEMS.find((s) => s.id === "ak47")!;
+    const r = buildKit({ targetColor: null, colorTolerance: 0.5, budgetCents: 1000, budgetTolerance: 0.1, slots: [{ slot: ak }] }, [mk("plain", 1000, 0.1), mk("loved", 1000, 0.9)]);
+    expect(r.best!.picks[0].candidate.itemId).toBe("loved");
+  });
+});

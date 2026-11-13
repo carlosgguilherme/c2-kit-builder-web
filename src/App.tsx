@@ -4,7 +4,7 @@ import { buildCandidates, fetchCatalog, fetchPrices, marketUrl, type KitData } f
 import { buildKit, rebalance, replacePick } from "./engine/engine";
 import { fromHex } from "./engine/oklab";
 import type { AlternativeOption, Candidate, KitProposal, KitRequest, KitResult } from "./engine/types";
-import { DEFAULT_CHOICES, buildSlots, cleanBudgetInput, parseBudget, type M4Choice, type PistolChoice, type SlotChoices } from "./kitOptions";
+import { DEFAULT_CHOICES, buildNovelKit, buildSlots, cleanBudgetInput, parseBudget, type M4Choice, type PistolChoice, type SlotChoices } from "./kitOptions";
 import { Footer, Header, Page } from "./Layout";
 import { delta, money, problemText, slotLabel } from "./texts";
 
@@ -33,6 +33,7 @@ export function App() {
   const [seed, setSeed] = useState(0);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const shownRef = useRef<Set<string>>(new Set());
   const resultRef = useRef<HTMLElement>(null);
 
   const budget = parseBudget(budgetText);
@@ -76,12 +77,31 @@ export function App() {
     if (!data) return;
     const req = makeRequest(nextSeed);
     if (!req) return;
-    const r = run(req, nextSeed, () => buildKit(req, data.candidates));
+    let r: KitResult;
+    if (trigger === "another") {
+      const current = new Set((kit?.picks ?? []).map((p) => p.candidate.skinId));
+      r = buildNovelKit(req, data.candidates, shownRef.current, current);
+      run(req, nextSeed, () => r);
+    } else {
+      shownRef.current = new Set();
+      r = run(req, nextSeed, () => buildKit(req, data.candidates));
+    }
+    r.best?.picks.forEach((p) => shownRef.current.add(p.candidate.skinId));
+    r.alternativeKits.forEach((k) => k.picks.forEach((p) => shownRef.current.add(p.candidate.skinId)));
     if (trigger !== "auto") {
       track(trigger === "another" ? "generate_another" : "generate_kit", {
         budget_range: budgetRange(budget ?? 0), items: slots.length, has_color: useColor, feasible: r.feasible,
       });
     }
+  }
+
+  function applySuggestedKit(index: number) {
+    if (!result) return;
+    const chosen = result.alternativeKits[index];
+    track("use_suggested_kit", { position: index + 1 });
+    setKit(chosen);
+    setOpen(null);
+    resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   // The kit follows the options: rebuild shortly after any change (and right after loading).
@@ -258,6 +278,31 @@ export function App() {
                   );
                 })}
               </div>
+              {result && result.alternativeKits.length > 0 && (
+                <section className="suggestions" aria-label="Outras sugestões">
+                  <h2 className="suggestions-title">Outras sugestões</h2>
+                  <ol>
+                    {[...(result.best ? [result.best] : []), ...result.alternativeKits]
+                      .map((k, i) => ({ k, i: i - 1 }))
+                      .filter(({ k }) => k !== kit)
+                      .map(({ k, i }) => (
+                        <li key={k.picks.map((p) => p.candidate.itemId).join("|")}>
+                          <div className="sugg-thumbs" aria-hidden="true">
+                            {k.picks.map((p) => {
+                              const im = data!.info.get(p.candidate.itemId)?.imageUrl;
+                              return im ? <img key={p.slotId} src={im} alt="" width={64} height={48} loading="lazy" decoding="async" /> : null;
+                            })}
+                          </div>
+                          <div className="sugg-text">
+                            <strong>{money(k.totalCents)}</strong>
+                            <span>{k.picks.map((p) => p.candidate.name.replace(/ \([^)]*\)$/, "")).join(" · ")}</span>
+                          </div>
+                          <button type="button" onClick={() => (i < 0 ? (setKit(result.best), setOpen(null)) : applySuggestedKit(i))}>Usar este kit</button>
+                        </li>
+                      ))}
+                  </ol>
+                </section>
+              )}
             </>
           )}
         </section>

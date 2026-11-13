@@ -42,6 +42,10 @@ export function quality(c: Candidate): number {
   const exterior = c.exterior === 1 ? 1.0 : c.exterior === 2 ? 0.8 : c.exterior === 3 ? 0.6 : c.exterior === 4 ? 0.4
     : c.exterior === 5 ? 0.25 : 0.7;
   const popularity = c.salesVolume != null ? Math.min(1.0, Math.log10(1 + Math.max(0, c.salesVolume)) / 4.0) : 0.5;
+  if (c.appeal != null) {
+    // Web extension: desirability dominates, so liked skins win over plain ones of the same tier.
+    return 0.3 * rarity + 0.15 * exterior + 0.05 * popularity + 0.5 * Math.min(1, Math.max(0, c.appeal));
+  }
   return 0.45 * rarity + 0.35 * exterior + 0.2 * popularity;
 }
 

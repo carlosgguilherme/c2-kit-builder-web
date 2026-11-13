@@ -51,3 +51,29 @@ describe("budget field", () => {
     expect(cleanBudgetInput("R$ 1a2")).toBe("12");
   });
 });
+
+describe("another combination", () => {
+  it("never returns to an earlier kit while other options exist, freeing only the slot that ran out", async () => {
+    const { buildNovelKit } = await import("./kitOptions");
+    const mk = (skinId: string, weapon: string, priceCents: number): Candidate => ({
+      itemId: skinId, skinId, name: skinId, weapon, category: "Rifle", rarity: 4, exterior: 3, statTrak: false, souvenir: false, priceCents, colors: null,
+    });
+    // AK has 4 options, AWP only 2: after two kits the AWP must repeat, the AK must not.
+    const catalog = [mk("ak1", "AK-47", 1000), mk("ak2", "AK-47", 1000), mk("ak3", "AK-47", 1000), mk("ak4", "AK-47", 1000), mk("awp1", "AWP", 1000), mk("awp2", "AWP", 1000)];
+    const slots = buildSlots({ knife: false, gloves: false, ak47: true, m4: "off", awp: true, deagle: false, pistol: "off" }).map((slot) => ({ slot }));
+    const req = { targetColor: null, colorTolerance: 0.5, budgetCents: 2000, budgetTolerance: 0.1, slots, maxAlternativeKits: 0 };
+    const shown = new Set<string>();
+    const kits: string[][] = [];
+    let current = new Set<string>();
+    for (let i = 0; i < 4; i++) {
+      const r = i === 0 ? buildKit(req, catalog) : buildNovelKit(req, catalog, shown, current);
+      const ids = r.best!.picks.map((p) => p.candidate.skinId);
+      kits.push(ids);
+      ids.forEach((id) => shown.add(id));
+      current = new Set(ids);
+    }
+    const aks = kits.map((k) => k[0]);
+    expect(new Set(aks).size).toBe(4); // four different AKs
+    for (let i = 1; i < kits.length; i++) expect(kits[i]).not.toEqual(kits[i - 1]);
+  });
+});

@@ -1,4 +1,5 @@
-import { EXTRA_SLOTS, MAIN_ITEMS, type SlotDefinition } from "./engine/types";
+import { buildKit } from "./engine/engine";
+import { EXTRA_SLOTS, MAIN_ITEMS, type Candidate, type KitRequest, type KitResult, type SlotDefinition } from "./engine/types";
 
 export type M4Choice = "off" | "any" | "m4a4" | "m4a1s" | "both";
 export type PistolChoice = "off" | "any" | "usp" | "glock" | "both";
@@ -52,3 +53,43 @@ export function parseBudget(text: string): number | null {
 
 /** Keeps only characters that can be part of an amount. */
 export const cleanBudgetInput = (text: string) => text.replace(/[^\d.,]/g, "").slice(0, 12);
+
+/**
+ * "Another combination" without repeats: first excludes every skin already shown with these options;
+ * if the budget/color leaves no kit, allows repeats one slot at a time (only where needed), always
+ * keeping the current kit's skins out; as a last resort only the random seed changes.
+ */
+export function buildNovelKit(
+  request: KitRequest,
+  candidates: readonly Candidate[],
+  shown: ReadonlySet<string>,
+  current: ReadonlySet<string>,
+): KitResult {
+  const attempt = (exclude: ReadonlySet<string>) =>
+    buildKit(request, exclude.size === 0 ? candidates : candidates.filter((c) => !exclude.has(c.skinId)));
+  const ok = (r: KitResult) => r.best !== null && r.feasible;
+
+  let r = attempt(new Set([...shown, ...current]));
+  if (ok(r)) return r;
+
+  const exclude = new Set([...shown, ...current]);
+  const freed = new Set<string>();
+  for (let i = 0; i < request.slots.length && !ok(r); i++) {
+    // Free the slot the engine reports as the problem; otherwise the next one not freed yet.
+    const target = request.slots.find((s) => s.slot.id === r.problem?.slotId && !freed.has(s.slot.id))
+      ?? request.slots.find((s) => !freed.has(s.slot.id))!;
+    freed.add(target.slot.id);
+    // Allow skins of this slot again, except the ones in the current kit.
+    for (const c of candidates) {
+      if (exclude.has(c.skinId) && !current.has(c.skinId)
+        && (target.slot.weapons.includes(c.weapon) || target.slot.categories.includes(c.category))) {
+        exclude.delete(c.skinId);
+      }
+    }
+    r = attempt(exclude);
+  }
+  if (ok(r)) return r;
+
+  r = attempt(current);
+  return ok(r) ? r : attempt(new Set());
+}

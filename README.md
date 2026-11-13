@@ -5,7 +5,8 @@ skin kits from a budget and a color, in the browser.
 
 | Part | Where |
 |---|---|
-| Kit engine | `src/engine`: TypeScript port of the Windows reference; `fixtures/` holds the shared golden cases (same picks required) |
+| Kit engine | `src/engine`: TypeScript port of the Windows reference; `fixtures/` holds the shared golden cases (same picks required). Web-only extension: an optional `appeal` (market desirability, `assignAppeal` in `src/data.ts`) weighs in the quality score; without it the formula is identical to the reference |
+| Variety | `buildNovelKit` (`src/kitOptions.ts`): "Outra combinação" avoids every skin already shown with the same options, freeing only the slot that runs out |
 | Catalog + colors | `scripts/build-data.mjs` builds `public/data/catalog.json` at deploy time from ByMykel/CSGO-API and the weekly color index release |
 | Prices | Supabase table filled by the `crawl-prices` Edge Function (see `supabase/README.md`); the site reads one RPC, visitors never call Steam |
 | UI | `src/App.tsx` (React, pt-BR) |
