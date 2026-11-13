@@ -14,6 +14,7 @@ skin kits from a budget and a color, in the browser.
 ```bash
 npm install
 npm test          # engine golden cases + data tests
+npm run test:e2e  # browser tests (desktop + phone) against the built site; E2E_BASE_URL=https://… for a deployed one
 npm run build     # downloads catalog data, type-checks and builds
 npm run dev
 ```
