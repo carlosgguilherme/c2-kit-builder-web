@@ -97,12 +97,19 @@ input[type="range"]::-moz-range-thumb { width: 24px; height: 28px; background: v
 
 /* Buttons: color change only, no motion */
 button { font: 800 15px var(--body); color: var(--ink); background: var(--sheet); border: var(--rule); border-radius: 0; padding: 10px 14px; cursor: pointer; min-height: var(--tap); }
-button:hover:not(:disabled) { background: var(--ink); color: var(--sheet); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button.primary { background: var(--signal); color: var(--on-signal); font: 900 20px var(--display); text-transform: uppercase; }
-button.primary:hover:not(:disabled) { background: var(--ink); }
 button.link-button { border: 0; background: none; padding: 0; min-height: 0; color: inherit; font: 800 14px var(--body); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
-button.link-button:hover { background: var(--signal); color: var(--on-signal); }
+/* Hover feedback only for real pointers (phones keep ":hover" on the last tapped element), and never
+   with the look of a selected state: an inset outline plus underline. */
+@media (hover: hover) and (pointer: fine) {
+  button:hover:not(:disabled) { outline: 3px solid var(--ink); outline-offset: -7px; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  button.chip[aria-pressed="true"]:hover:not(:disabled), .segmented-options button[aria-checked="true"]:hover { outline-color: var(--sheet); }
+  button.primary:hover:not(:disabled) { background: var(--ink); outline: none; }
+  .mobile-bar button:hover:not(:disabled) { outline-color: var(--on-signal); }
+  button.link-button:hover { outline: none; background: var(--signal); color: var(--on-signal); }
+  .swatch:hover { outline: 3px solid var(--ink); outline-offset: 2px; }
+}
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .status { font-size: 13px; font-weight: 600; margin: 0; border-top: var(--rule); padding-top: 10px; }
 

@@ -6,3 +6,5 @@ public/data/
 .vercel/
 public/sitemap.xml
 public/robots.txt
+test-results/
+playwright-report/

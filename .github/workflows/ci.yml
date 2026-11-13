@@ -20,3 +20,9 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Install Chromium for end-to-end tests
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests (desktop and phone)
+        run: npm run test:e2e
