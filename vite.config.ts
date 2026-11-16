@@ -54,6 +54,6 @@ export default defineConfig(({ mode }) => {
         input: Object.fromEntries(Object.keys(PAGES).map((f) => [f.replace(".html", ""), resolve(__dirname, f)])),
       },
     },
-    test: { include: ["src/**/*.test.ts"] },
+    test: { include: ["src/**/*.test.ts", "supabase/functions/**/*.test.ts"] },
   };
 });

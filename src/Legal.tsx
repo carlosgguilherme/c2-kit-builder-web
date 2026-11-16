@@ -103,8 +103,8 @@ function Privacy() {
       <p>Ao abrir o site, o seu navegador se conecta diretamente a estes serviços, que recebem dados técnicos normais de qualquer acesso à internet, como endereço IP e tipo de navegador:</p>
       <ul>
         <li><strong>Vercel</strong>, que hospeda as páginas do site.</li>
-        <li><strong>Supabase</strong>, que guarda a tabela de preços consultada pela página.</li>
-        <li><strong>Steam (Valve)</strong>, de onde são carregadas as imagens das skins e para onde levam os links "Ver no Mercado".</li>
+        <li><strong>Supabase</strong>, que guarda a tabela de preços consultada pela página e busca na Steam as imagens da área de inspeção.</li>
+        <li><strong>Steam (Valve)</strong>, de onde são carregadas as imagens das skins e da inspeção, para onde levam os links "Ver no Mercado" e que abre o CS2 quando você usa "Inspecionar no jogo".</li>
         {analyticsEnabled() && <li><strong>Google</strong>, somente se você aceitar as estatísticas de uso.</li>}
       </ul>
       <p>

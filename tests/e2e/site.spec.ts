@@ -7,7 +7,21 @@ const INK = "rgb(18, 18, 18)";
 test.beforeEach(async ({ page }) => {
   await page.route("**/rest/v1/rpc/prices_snapshot", (r) => r.fulfill({ contentType: "application/json", body: prices }));
   await page.route("**/economy/image/**", (r) => r.fulfill({ contentType: "image/png", body: readFileSync("public/favicon-32.png") }));
+  await page.route("**/market_listings/**", (r) => r.fulfill({ contentType: "image/png", body: readFileSync("public/og-image.png") }));
+  await page.route("**/functions/v1/inspect-link?**", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(listingView(r.request().url())) }));
 });
+
+/** Mock of the inspect-link function: 4 renders (3 for gloves) and a certificate per item. */
+function listingView(url: string) {
+  const name = new URL(url).searchParams.get("name") ?? "";
+  const id = encodeURIComponent(name).replace(/%/g, "");
+  const n = /Gloves|Wraps/.test(name) ? 3 : 4;
+  return {
+    link: `steam://run/730//+csgo_econ_action_preview%20${id.length.toString(16).toUpperCase()}ABCDEF`,
+    views: Array.from({ length: n }, (_, i) => `https://shared.akamai.steamstatic.com/market_listings/ea/730/${id}/${i}_1.avif`),
+    float: 0.123456789, pattern: 594, listings: 20,
+  };
+}
 
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1366) < 860;
 const press = async (page: Page, el: Locator) => (isPhone(page) ? el.tap() : el.click());
@@ -239,4 +253,91 @@ test("no vibe-coded patterns: shadows, gradients, blur, rounded corners or pure 
     return out;
   });
   expect(bad).toEqual([]);
+});
+
+test("inspect panel: switch items, views, turn, inspect and open in game", async ({ page }) => {
+  const errors = await openBuilder(page);
+  const panel = page.locator(".inspector");
+  await panel.scrollIntoViewIfNeeded();
+  const stage = panel.locator(".stage");
+  const switches = panel.locator(".inspector-switch button");
+  await expect(switches).toHaveCount(5);
+  await expect(switches.first()).toHaveAttribute("aria-pressed", "true");
+  const names = await cardNames(page);
+  for (const [i, b] of (await switches.all()).entries()) expect(names[i].startsWith((await b.innerText()).replace(/^\d+\s*/, ""))).toBe(true);
+  // Starts in hand, like the game, with the official link and the listing's float and pattern.
+  await expect(panel.getByRole("radio", { name: "Na mão" })).toHaveAttribute("aria-checked", "true");
+  await expect(stage.locator("img.on")).toHaveAttribute("src", /\/3_1\.avif$/);
+  await expect(panel.getByRole("link", { name: "Inspecionar no jogo" })).toHaveAttribute("href", /^steam:\/\/run\/730\/\/\+csgo_econ_action_preview%20[0-9A-F]+$/);
+  await expect(panel.locator(".inspector-stats")).toHaveText("Float 0,123457 · Padrão 594");
+  const firstName = await panel.locator(".inspector-info strong").innerText();
+  expect(await cardNames(page)).toContain(firstName);
+
+  // Views.
+  await press(page, panel.getByRole("radio", { name: "Esquerda" }));
+  await expect(stage.locator("img.on")).toHaveAttribute("src", /\/1_1\.avif$/);
+  await expect(stage.locator(".stage-tag")).toHaveText("Esquerda");
+
+  // Switch to the second item: the panel follows it and the view goes back to the hand.
+  await press(page, switches.nth(1));
+  await expect(switches.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(panel.locator(".inspector-info strong")).toHaveText((await cardNames(page))[1]);
+  await expect(stage.locator("img.on")).toHaveAttribute("src", /\/3_1\.avif$/);
+
+  // Keyboard: arrows turn, F inspects, numbers switch.
+  await stage.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(stage.locator(".stage-tag")).toHaveText("3/4");
+  await page.keyboard.press("ArrowRight");
+  await expect(stage.locator(".stage-tag")).toHaveText("Direita");
+  await page.keyboard.press("f");
+  await expect(stage).toHaveClass(/inspecting/);
+  await expect(stage).not.toHaveClass(/inspecting/, { timeout: 10_000 });
+  await expect(stage.locator(".stage-tag")).toHaveText("Na mão");
+  await page.keyboard.press("3");
+  await expect(switches.nth(2)).toHaveAttribute("aria-pressed", "true");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test("inspect panel: dragging turns the item", async ({ page }) => {
+  await openBuilder(page);
+  const stage = page.locator(".inspector .stage");
+  await stage.scrollIntoViewIfNeeded();
+  await expect(stage.locator(".stage-tag")).toHaveText("Na mão");
+  const box = (await stage.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 90, y, { steps: 6 });
+  await page.mouse.up();
+  await expect(stage.locator(".stage-tag")).toHaveText("3/4");
+});
+
+test("inspect panel: gloves have no in-hand view and a failed lookup can be retried", async ({ page }) => {
+  let fail = true;
+  await page.route("**/functions/v1/inspect-link?**", (r) => {
+    if (fail && /Desert/.test(r.request().url())) return r.fulfill({ status: 503, contentType: "application/json", body: '{"error":"steam_rate_limited"}' });
+    return r.fulfill({ contentType: "application/json", body: JSON.stringify(listingView(r.request().url())) });
+  });
+  await openBuilder(page);
+  await page.locator("#budget").fill("5000");
+  await press(page, page.getByRole("button", { name: "Luvas", exact: true }));
+  await expect(page.locator(".card")).toHaveCount(6);
+  const panel = page.locator(".inspector");
+  await panel.scrollIntoViewIfNeeded();
+  const switchFor = async (slot: string) => panel.locator(".inspector-switch button").nth((await slotLabels(page)).indexOf(slot));
+  await expect(panel.locator(".inspector-switch button")).toHaveCount(6);
+  await press(page, await switchFor("LUVAS"));
+  await expect(panel.getByRole("radio", { name: "Na mão" })).toBeDisabled();
+  await expect(panel.getByRole("radio", { name: "3/4" })).toHaveAttribute("aria-checked", "true");
+
+  await press(page, await switchFor("DESERT EAGLE"));
+  await expect(panel.locator(".inspector-error")).toContainText("A Steam pediu uma pausa");
+  await expect(panel.locator(".stage-fallback img")).toBeVisible();
+  await expect(panel.locator(".button-link.disabled")).toHaveText("Inspecionar no jogo");
+  fail = false;
+  await press(page, panel.getByRole("button", { name: "Tentar de novo" }));
+  await expect(panel.locator(".inspector-error")).toHaveCount(0);
+  await expect(panel.getByRole("link", { name: "Inspecionar no jogo" })).toBeVisible();
 });

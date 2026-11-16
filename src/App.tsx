@@ -5,6 +5,7 @@ import { buildKit, rebalance, replacePick } from "./engine/engine";
 import { fromHex } from "./engine/oklab";
 import type { AlternativeOption, Candidate, KitProposal, KitRequest, KitResult } from "./engine/types";
 import { DEFAULT_CHOICES, buildNovelKit, buildSlots, cleanBudgetInput, parseBudget, type M4Choice, type PistolChoice, type SlotChoices } from "./kitOptions";
+import { Inspector } from "./Inspector";
 import { Footer, Header, Page } from "./Layout";
 import { delta, money, problemText, slotLabel } from "./texts";
 
@@ -278,6 +279,13 @@ export function App() {
                   );
                 })}
               </div>
+              <Inspector
+                items={kit.picks.map((p) => {
+                  const info = data!.info.get(p.candidate.itemId);
+                  return { slotId: p.slotId, slotLabel: p.candidate.weapon || slotLabel(p.slotId), name: p.candidate.name,
+                    marketHashName: info?.marketHashName ?? p.candidate.name, imageUrl: info?.imageUrl ?? null };
+                })}
+              />
               {result && result.alternativeKits.length > 0 && (
                 <section className="suggestions" aria-label="Outras sugestões">
                   <h2 className="suggestions-title">Outras sugestões</h2>

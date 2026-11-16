@@ -9,6 +9,7 @@ skin kits from a budget and a color, in the browser.
 | Variety | `buildNovelKit` (`src/kitOptions.ts`): "Outra combinação" avoids every skin already shown with the same options, freeing only the slot that runs out |
 | Catalog + colors | `scripts/build-data.mjs` builds `public/data/catalog.json` at deploy time from ByMykel/CSGO-API and the weekly color index release |
 | Prices | Supabase table filled by the `crawl-prices` Edge Function (see `supabase/README.md`); the site reads one RPC, visitors never call Steam |
+| Inspect panel | `src/Inspector.tsx`: Valve's renders of the cheapest market listing of each kit item (in hand, 3/4, left, right), number keys switch items, drag or arrows turn, F plays the inspect sequence, "Inspecionar no jogo" opens the item in CS2. Data from the `inspect-link` Edge Function, fetched only when the panel is on screen |
 | UI | `src/App.tsx` (React, pt-BR) |
 
 ```bash
