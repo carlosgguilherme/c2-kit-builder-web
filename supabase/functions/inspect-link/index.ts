@@ -1,11 +1,11 @@
-// Returns, for one CS2 item, the cheapest Steam Market listing's official renders (3/4, left, right,
-// in hand), its float and pattern, and its "Inspect in Game" link. Results are cached for 12 hours
-// in public.inspect_links, so Steam sees at most one request per item every 12 hours.
+// Returns, for one CS2 item (exact wear), the cheapest Steam Market listing's official renders
+// (3/4, left, right, in hand), its float and pattern, and its "Inspect in Game" link. Results are
+// cached for 12 hours in public.inspect_links, so Steam sees at most one request per item per 12 hours.
 // Only items present in the price cache are accepted, so the function cannot be used to crawl
 // arbitrary market pages.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { parseListingPage } from "./parse.ts";
+import { listingsQuery, parseListings } from "./parse.ts";
 
 const ALLOWED_ORIGINS = new Set(["https://cs2-kit-builder.vercel.app", "http://localhost:4180", "http://localhost:5173"]);
 const TTL_MS = 12 * 60 * 60_000;
@@ -44,15 +44,21 @@ Deno.serve(async (req) => {
   const { data: known } = await db.from("prices").select("market_hash_name").eq("market_hash_name", name).maybeSingle();
   if (!known) return reply({ error: "unknown_item" }, 404);
 
-  const res = await fetch(`https://steamcommunity.com/market/listings/730/${encodeURIComponent(name)}`, {
-    headers: { "User-Agent": "Mozilla/5.0 cs2-kit-builder-web (noncommercial)", "Accept-Language": "en" },
+  // Same request the market page makes when a wear is selected (see parse.ts).
+  const res = await fetch(`https://steamcommunity.com/market/actions?${listingsQuery(name)}`, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 cs2-kit-builder-web (noncommercial)",
+      "Accept-Language": "en",
+      "x-valve-request-type": "queryAction",
+    },
+    redirect: "manual",
   });
   if (res.status === 429) return reply({ error: "steam_rate_limited" }, 503);
   if (!res.ok) return reply({ error: `steam_http_${res.status}` }, 502);
 
   let payload;
   try {
-    payload = parseListingPage(await res.text());
+    payload = parseListings(await res.json(), name);
   } catch {
     return reply({ error: "steam_format_changed" }, 502);
   }

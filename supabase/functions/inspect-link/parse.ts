@@ -1,8 +1,11 @@
-// Pure parser for a Steam Community Market listing page (new UI, late 2026).
-// The page embeds its data as JSON in <script id="valve-ssr-data">; the listings live in
-// renderContext.queryData, itself a JSON string. Each listing carries Valve's own renders of that
-// exact item ("enhanced_appearances") and asset properties: 1 = pattern template, 2 = wear (float),
-// 6 = item certificate, which fills the "Inspect in Game" link template "...%propid:6%".
+// Pure parser for Steam Community Market listings (new market UI, late 2026).
+// The market page groups every wear of a skin and shows the cheapest listings of any wear, so the
+// function asks the page's own query action instead:
+//   GET /market/actions?q=QueryListingsForItem&qp=[{appid, strItemName, disableGrouping: true, ...}]
+//   header x-valve-request-type: queryAction  ->  { data: { listings: [...], total_count, more } }
+// Each listing carries Valve's own renders of that exact item ("enhanced_appearances") and asset
+// properties: 1 = pattern template, 2 = wear (float), 6 = item certificate, which fills the
+// "Inspect in Game" link template "...%propid:6%" found in the listing description's actions.
 
 export interface ListingView {
   /** steam://run/730//+csgo_econ_action_preview%20<certificate>, or null when not found. */
@@ -11,7 +14,7 @@ export interface ListingView {
   views: string[];
   float: number | null;
   pattern: number | null;
-  /** Listings found on the first page. */
+  /** Listings of this exact item on the first page. */
   listings: number;
 }
 
@@ -61,23 +64,28 @@ function property(asset: Obj | undefined, id: number): Obj | undefined {
   return props.find((p) => (p as Obj | null)?.propertyid === id) as Obj | undefined;
 }
 
-export function parseListingPage(html: string): ListingView {
-  const empty: ListingView = { link: null, views: [], float: null, pattern: null, listings: 0 };
-  const m = html.match(/<script[^>]*id="valve-ssr-data"[^>]*>([\s\S]*?)<\/script>/);
-  if (!m) throw new Error("valve-ssr-data not found");
-  const root = JSON.parse(m[1]);
+/** Query string of the listings request for one exact item (one wear, StatTrak or not). */
+export function listingsQuery(marketHashName: string): string {
+  const qp = [{ appid: 730, strItemName: marketHashName, filters: {}, accessoryFilters: {}, propertyFilters: {}, disableGrouping: true, start: 0 }];
+  return `q=QueryListingsForItem&qp=${encodeURIComponent(JSON.stringify(qp))}`;
+}
+
+/** Reads the query action response; only listings of exactly marketHashName are considered. */
+export function parseListings(response: unknown, marketHashName: string): ListingView {
+  if (response === null || typeof response !== "object" || !("data" in response)) throw new Error("unexpected response");
 
   let template: string | null = null;
   const listings: Obj[] = [];
   const seen = new Set<string>();
-  walk(root, (o) => {
-    template ??= findTemplate(o);
-    if (typeof o.listingid === "string" && o.asset && typeof o.asset === "object" && !seen.has(o.listingid)) {
-      seen.add(o.listingid);
-      listings.push(o);
-    }
+  walk((response as Obj).data, (o) => {
+    if (typeof o.listingid !== "string" || !o.asset || typeof o.asset !== "object" || seen.has(o.listingid)) return;
+    const desc = (o.description ?? {}) as Obj;
+    if (typeof desc.market_hash_name === "string" && desc.market_hash_name !== marketHashName) return;
+    seen.add(o.listingid);
+    listings.push(o);
+    template ??= findTemplate(desc);
   });
-  if (listings.length === 0) return { ...empty, link: template && !template.includes("%") ? template : null };
+  if (listings.length === 0) return { link: null, views: [], float: null, pattern: null, listings: 0 };
 
   // Listings come cheapest first; prefer the cheapest one that has renders.
   const viewsOf = (l: Obj) =>
